@@ -7,7 +7,7 @@ import numpy as np
 ip = '192.168.8.104'
 port = 9012
 
-robot_name = 'juliet'
+robot_name = 'india'
 
 ros = roslibpy.Ros(host=ip, port=port)
 ros.run()
@@ -41,8 +41,8 @@ class Lidar:
         self.yaw = 0.0
         #mapping parameters
         self.resolution = 0.1 #meter/cell
-        self.width = 50
-        self.height = 100
+        self.width = 100
+        self.height = 200
         self.data = [-1] * (self.width*self.height)
 
     # callback functions
@@ -55,7 +55,6 @@ class Lidar:
         qz = o.get('z', 0)
         qw = o.get('w', 1)
         self.yaw = math.atan2(2*(qw*qz + qx*qy), 1 - 2*(qy**2 + qz**2))
-        #print(f"x: {x}, y: {y}, yaw: {yaw}")
 
     def callback_scan(self, message):
         angle_min = message.get('angle_min', 0)
@@ -96,16 +95,21 @@ class Lidar:
     def lidar_to_map(self):
         xs = [self.x + r*math.cos(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
         ys = [self.y + r*math.sin(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
-        middle = [self.width/2, self.height/2]
-        x_idx = [int(x / self.resolution + middle[0]) for x in xs]
-        y_idx = [int(y / self.resolution + middle[1]) for y in ys]
+        ts = [math.atan2(y, x) for x, y in zip(xs, ys)]
+        self.middle = [self.width/2, self.height/2]
+        x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
+        y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]
 
         points = set(zip(x_idx, y_idx))
         for y in range(self.height):
             for x in range(self.width):
                 index = y * self.width + x
-                self.data[index] = 100 if (x, y) in points else -1
-
+                if x == self.middle[0] and y == self.middle[1]:
+                    self.data[index] = 50
+                elif (x, y) in points:
+                    self.data[index] = 100
+                else:
+                    self.data[index] = -1
 
     def make_grid(self):
         self.lidar_to_map()
@@ -114,18 +118,18 @@ class Lidar:
                             'resolution': self.resolution,
                             'width': self.width,
                             'height': self.height,
-                            'origin': {'position': {'x': 0.0, 'y': 0.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':1.0}}
+                            'origin': {'position': {'x': 0.0, 'y': 0.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':-1.0}}
                             },
                     'data': self.data}
         return grid_msg
     
     def publish_map(self):
-        self.map_topic.publish(roslibpy.Message(self.make_grid()))
-        print("Publishing Map...")        
+        self.map_topic.publish(roslibpy.Message(self.make_grid()))       
 
 if __name__ == '__main__':
     lidar = Lidar(ros, robot_name)
     lidar.subscribe()
+    print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
         time.sleep(1)
         lidar.publish_map()
