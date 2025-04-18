@@ -49,6 +49,7 @@ class Lidar:
         self.buffer = 50
         self.scan_data = deque(maxlen=self.buffer)
         self.odom_data = deque(maxlen=self.buffer)
+        self.history = deque(maxlen=10)
 
     # callback functions
     def callback_odom(self, message):
@@ -102,7 +103,7 @@ class Lidar:
 
     def get_latest_scan(self):
         return list(self.scan_data)
-
+    
     def lidar_to_map(self):
         for odom in self.odom_data:
             for scan in self.scan_data:
@@ -120,18 +121,19 @@ class Lidar:
         ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
         self.middle = [self.width/2, self.height/2]
         x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
-        y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]
-
+        y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
+    
         points = set(zip(x_idx, y_idx))
+        self.history.append(points)
         for y in range(self.height):
             for x in range(self.width):
                 index = y * self.width + x
-                if x == self.middle[0] and y == self.middle[1]:
-                    self.data[index] = 50
-                elif (x, y) in points:
+                if (x, y) in points:
                     self.data[index] = 100
+                elif (x, y) not in points and (x, y) not in self.history:
+                    self.data[index] = 0
                 else:
-                    self.data[index] = -1
+                    continue
 
     def make_grid(self):
         self.lidar_to_map()
@@ -145,8 +147,8 @@ class Lidar:
                     'data': self.data}
         return grid_msg
     
-    def publish_map(self):
-        self.map_topic.publish(roslibpy.Message(self.make_grid()))       
+    def update_map(self):
+        self.map_topic.publish(roslibpy.Message(self.make_grid()))
 
 if __name__ == '__main__':
     lidar = Lidar(ros, robot_name)
@@ -154,7 +156,7 @@ if __name__ == '__main__':
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
         time.sleep(2)
-        lidar.publish_map()
+        lidar.update_map()
 
     # cleanup
     lidar.unsubscribe()
