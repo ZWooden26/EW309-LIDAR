@@ -2,12 +2,13 @@ import roslibpy
 import time
 import math
 import numpy as np
+from collections import deque
 
 # Connect to Ros
 ip = '192.168.8.104'
 port = 9012
 
-robot_name = 'india'
+robot_name = 'foxtrot'
 
 ros = roslibpy.Ros(host=ip, port=port)
 ros.run()
@@ -44,9 +45,15 @@ class Lidar:
         self.width = 100
         self.height = 200
         self.data = [-1] * (self.width*self.height)
+        #deque for storing only latest scans/odom
+        self.buffer = 50
+        self.scan_data = deque(maxlen=self.buffer)
+        self.odom_data = deque(maxlen=self.buffer)
 
     # callback functions
     def callback_odom(self, message):
+        stamp = message['header']['stamp'] # extract time stamp
+        timestamp = stamp['sec'] + stamp['nanosec'] * 1e-9
         self.x = message.get('pose').get('pose').get('position').get('x')
         self.y = message.get('pose').get('pose').get('position').get('y')
         o = message.get('pose').get('pose').get('orientation')
@@ -55,8 +62,17 @@ class Lidar:
         qz = o.get('z', 0)
         qw = o.get('w', 1)
         self.yaw = math.atan2(2*(qw*qz + qx*qy), 1 - 2*(qy**2 + qz**2))
+        self.odom_data.append({
+            'timestamp': timestamp,
+            'position': {
+                'x': self.x,
+                'y': self.y},
+            'yaw': self.yaw
+        })  
 
     def callback_scan(self, message):
+        stamp = message['header']['stamp']
+        timestamp = stamp['sec'] + stamp['nanosec'] * 1e-9
         angle_min = message.get('angle_min', 0)
         angle_max = message.get('angle_max', 0)
         angle_increment = message.get('angle_increment', 0)
@@ -65,6 +81,12 @@ class Lidar:
         mask = np.array(ranges) < 0.1
         self.ranges = np.array(ranges)[~mask]
         self.angles = np.array(angles)[~mask]
+        self.scan_data.append({
+            'timestamp': timestamp,
+            'ranges': self.ranges,
+            'angles': self.angles
+        })
+        
     
     #functions
     def subscribe(self):
@@ -74,28 +96,28 @@ class Lidar:
     def unsubscribe(self):
         self.lidar_topic.unsubscribe()
         self.odom_topic.unsubscribe()
+    
+    def get_latest_odom(self):
+        return list(self.odom_data)
 
-#    def lidar_to_map(self):
-#        xs = [self.x + r*math.cos(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
-#        ys = [self.y + r*math.sin(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
-#        print(xs)
-#        middle = [self.width/2, self.height/2]
-#        x_idx = [int(xs[i]/self.resolution + middle[0]) for i in range(len(xs))]
-#        y_idx = [int(ys[i]/self.resolution + middle[1]) for i in range(len(ys))]
-
-#        for y in range(self.height):
-#            for x in range(self.width):
-#                index = int(y*(self.width+1) + x)
-#                print(index)
-#                if x in x_idx and y in y_idx:
-#                    self.data[index] = 100
-#                else:
-#                    self.data[index] = -1
+    def get_latest_scan(self):
+        return list(self.scan_data)
 
     def lidar_to_map(self):
-        xs = [self.x + r*math.cos(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
-        ys = [self.y + r*math.sin(self.yaw + a) for r,a in zip(self.ranges, self.angles)]
-        ts = [math.atan2(y, x) for x, y in zip(xs, ys)]
+        for odom in self.odom_data:
+            for scan in self.scan_data:
+                if abs(odom['timestamp'] - scan['timestamp']) <= 0.05: 
+                    x = odom['position']['x']
+                    y = odom['position']['y']
+                    yaw = odom['yaw']
+                    ranges = scan['ranges']
+                    angles = scan['angles']
+                    break
+                else:
+                    continue
+
+        xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
+        ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
         self.middle = [self.width/2, self.height/2]
         x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
         y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]
@@ -131,7 +153,7 @@ if __name__ == '__main__':
     lidar.subscribe()
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
-        time.sleep(1)
+        time.sleep(2)
         lidar.publish_map()
 
     # cleanup
