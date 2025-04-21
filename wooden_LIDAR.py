@@ -42,8 +42,8 @@ class Lidar:
         self.yaw = 0.0
         #mapping parameters
         self.resolution = 0.1 #meter/cell
-        self.width = 100
-        self.height = 200
+        self.width = 200
+        self.height = 400
         self.data = [-1] * (self.width*self.height)
         #deque for storing only latest scans/odom
         self.buffer = 50
@@ -104,6 +104,35 @@ class Lidar:
     def get_latest_scan(self):
         return list(self.scan_data)
     
+    def bresenham(self, x0, y0, x1, y1):
+        """ Bresenham's line algorithm to get cells between robot and obstacle """
+        points = []
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        x, y = x0, y0
+        sx = -1 if x0 > x1 else 1
+        sy = -1 if y0 > y1 else 1
+        if dx > dy:
+            err = dx / 2.0
+            while x != x1:
+                points.append((x, y))
+                err -= dy
+                if err < 0:
+                    y += sy
+                    err += dx
+                x += sx
+        else:
+            err = dy / 2.0
+            while y != y1:
+                points.append((x, y))
+                err -= dx
+                if err < 0:
+                    x += sx
+                    err += dy
+                y += sy
+        points.append((x1, y1))
+        return points
+
     def lidar_to_map(self):
         for odom in self.odom_data:
             for scan in self.scan_data:
@@ -117,23 +146,40 @@ class Lidar:
                 else:
                     continue
 
-        xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
-        ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
-        self.middle = [self.width/2, self.height/2]
-        x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
-        y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
-    
-        points = set(zip(x_idx, y_idx))
-        self.history.append(points)
-        for y in range(self.height):
-            for x in range(self.width):
-                index = y * self.width + x
-                if (x, y) in points:
-                    self.data[index] = 100
-                elif (x, y) not in points and (x, y) not in self.history:
-                    self.data[index] = 0
-                else:
-                    continue
+        #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
+        #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
+        #self.middle = [self.width/2, self.height/2]
+        #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
+        #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
+
+        # Map center
+        middle = [self.width // 2, self.height // 2]
+        robot_x = int(x / self.resolution + middle[0])
+        robot_y = int(y / self.resolution + middle[1])
+
+        for r, a in zip(ranges, angles):
+            end_x = x + r * math.cos(yaw + a)
+            end_y = y + r * math.sin(yaw + a)
+            x_idx = int(end_x / self.resolution + middle[0])
+            y_idx = int(end_y / self.resolution + middle[1])
+
+        # points = set(zip(x_idx, y_idx))
+        # self.history.append(points)
+
+        line = self.bresenham(robot_x, robot_y, x_idx, y_idx)
+        for i, j in line[:-1]:  # all cells before the obstacle
+            if 0 <= i < self.width and 0 <= j < self.height:
+                self.data[j * self.width + i] = 0  # Free space
+        if 0 <= x_idx < self.width and 0 <= y_idx < self.height:
+            self.data[y_idx * self.width + x_idx] = 100  # Occupied
+        
+        #for y in range(self.height):
+        #    for x in range(self.width):
+        #        index = y * self.width + x
+        #        if (x, y) in points:
+        #            self.data[index] = 100
+        #        else:
+        #            continue
 
     def make_grid(self):
         self.lidar_to_map()
