@@ -3,6 +3,7 @@ import time
 import math
 import numpy as np
 from collections import deque
+import threading
 
 # Connect to Ros
 ip = '192.168.8.104'
@@ -30,6 +31,7 @@ class Lidar:
     def __init__ (self, ros, robot_name='juliet'):
         self.robot_name = robot_name
         self.ros = ros
+        self.lock = threading.Lock()
         #create topics
         self.odom_topic = roslibpy.Topic(ros, f'/{robot_name}/odom', 'nav_msgs/Odometry')
         self.lidar_topic = roslibpy.Topic(ros, f'/{robot_name}/scan', 'sensor_msgs/LaserScan')
@@ -42,11 +44,11 @@ class Lidar:
         self.yaw = 0.0
         #mapping parameters
         self.resolution = 0.2 #meter/cell
-        self.width = 300
-        self.height = 300
+        self.width = 200
+        self.height = 200
         self.data = [-1] * (self.width*self.height)
         #deque for storing only latest scans/odom
-        self.buffer = 50
+        self.buffer = 20
         self.scan_data = deque(maxlen=self.buffer)
         self.odom_data = deque(maxlen=self.buffer)
         self.history = deque(maxlen=10)
@@ -105,71 +107,76 @@ class Lidar:
         return list(self.scan_data)
     
     def lidar_to_map(self):
-        for odom in self.odom_data:
-            for scan in self.scan_data:
-                if abs(odom['timestamp'] - scan['timestamp']) <= 0.05: 
-                    x = odom['position']['x']
-                    y = odom['position']['y']
-                    yaw = odom['yaw']
-                    ranges = scan['ranges']
-                    angles = scan['angles']
+        with self.lock:
+            breakFlag = False
+            for odom in self.odom_data:
+                for scan in self.scan_data:
+                    if abs(odom['timestamp'] - scan['timestamp']) <= 0.05: 
+                        x = odom['position']['x']
+                        y = odom['position']['y']
+                        yaw = odom['yaw']
+                        ranges = scan['ranges']
+                        angles = scan['angles']
+                        breakFlag = True
+                        break
+                    else:
+                        continue
+                if breakFlag:
                     break
-                else:
-                    continue
 
-        #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
-        #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
-        #self.middle = [self.width/2, self.height/2]
-        #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
-        #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
+            #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
+            #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
+            #self.middle = [self.width/2, self.height/2]
+            #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
+            #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
 
-        # Map center
-        middle = [self.width // 2, self.height // 2]
-        robot_x = int((x / self.resolution) + middle[0])
-        robot_y = int((y / self.resolution) + middle[1])
+            # Map center
+            middle = [self.width // 2, self.height // 2]
+            robot_x = int((x / self.resolution) + middle[0])
+            robot_y = int((y / self.resolution) + middle[1])
 
-        for r, a in zip(ranges, angles):
-            if r > 0:
-                end_x = x + r * math.cos(yaw + a)
-                end_y = y + r * math.sin(yaw + a)
-                steps = int(r/self.resolution)
-                for i in range(steps):
-                    intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
-                    intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
-                    x_cell = int(robot_x + intermediate_x / self.resolution)
-                    y_cell = int(robot_y + intermediate_y / self.resolution)
+            for r, a in zip(ranges, angles):
+                if r > 0:
+                    end_x = x + r * math.cos(yaw + a)
+                    end_y = y + r * math.sin(yaw + a)
+                    steps = int(r/self.resolution)
+                    for i in range(steps):
+                        intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
+                        intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
+                        x_cell = int(robot_x + intermediate_x / self.resolution)
+                        y_cell = int(robot_y + intermediate_y / self.resolution)
 
+                        if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
+                            index = y_cell * self.width + x_cell
+                            self.data[index] = 0  # Free space
+
+                    x_cell = int(robot_x + (end_x / self.resolution))
+                    y_cell = int(robot_y + (end_y / self.resolution))
                     if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
                         index = y_cell * self.width + x_cell
-                        self.data[index] = 0  # Free space
+                        self.data[index] = 100  # Obstacle
 
-                x_cell = int(robot_x + (end_x / self.resolution))
-                y_cell = int(robot_y + (end_y / self.resolution))
-                if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
-                    index = y_cell * self.width + x_cell
-                    self.data[index] = 100  # Obstacle
+            box_radius = 1
+            for dx in range(-box_radius, box_radius + 1):
+                for dy in range(-box_radius, box_radius + 1):
+                    cx = robot_x + dx
+                    cy = robot_y + dy
+                    if 0 <= cx < self.width and 0 <= cy < self.height:
+                        index = cy * self.width + cx
+                        self.data[index] = 50  # Robot
+                
+            #x_idx = int(end_x / self.resolution + middle[0])
+            #y_idx = int(end_y / self.resolution + middle[1])
 
-        box_radius = 1
-        for dx in range(-box_radius, box_radius + 1):
-            for dy in range(-box_radius, box_radius + 1):
-                cx = robot_x + dx
-                cy = robot_y + dy
-                if 0 <= cx < self.width and 0 <= cy < self.height:
-                    index = cy * self.width + cx
-                    self.data[index] = 50  # Robot
-            
-        #x_idx = int(end_x / self.resolution + middle[0])
-        #y_idx = int(end_y / self.resolution + middle[1])
-
-        # points = set(zip(x_idx, y_idx))
-        # self.history.append(points)
-        #for y in range(self.height):
-        #    for x in range(self.width):
-        #        index = y * self.width + x
-        #        if (x, y) in points:
-        #            self.data[index] = 100
-        #        else:
-        #            continue
+            # points = set(zip(x_idx, y_idx))
+            # self.history.append(points)
+            #for y in range(self.height):
+            #    for x in range(self.width):
+            #        index = y * self.width + x
+            #        if (x, y) in points:
+            #            self.data[index] = 100
+            #        else:
+            #            continue
 
     def make_grid(self):
         self.lidar_to_map()
@@ -191,7 +198,7 @@ if __name__ == '__main__':
     lidar.subscribe()
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
-        time.sleep(5)
+        time.sleep(2)
         lidar.update_map()
 
     # cleanup
