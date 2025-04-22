@@ -8,7 +8,7 @@ from collections import deque
 ip = '192.168.8.104'
 port = 9012
 
-robot_name = 'foxtrot'
+robot_name = 'juliet'
 
 ros = roslibpy.Ros(host=ip, port=port)
 ros.run()
@@ -41,9 +41,9 @@ class Lidar:
         self.y = 0.0
         self.yaw = 0.0
         #mapping parameters
-        self.resolution = 0.1 #meter/cell
-        self.width = 200
-        self.height = 400
+        self.resolution = 0.2 #meter/cell
+        self.width = 300
+        self.height = 300
         self.data = [-1] * (self.width*self.height)
         #deque for storing only latest scans/odom
         self.buffer = 50
@@ -125,10 +125,10 @@ class Lidar:
 
         # Map center
         middle = [self.width // 2, self.height // 2]
-        robot_x = int(x / self.resolution + middle[0])
-        robot_y = int(y / self.resolution + middle[1])
+        robot_x = int((x / self.resolution) + middle[0])
+        robot_y = int((y / self.resolution) + middle[1])
 
-        for r, a in zip(self.ranges, self.angles):
+        for r, a in zip(ranges, angles):
             if r > 0:
                 end_x = x + r * math.cos(yaw + a)
                 end_y = y + r * math.sin(yaw + a)
@@ -137,20 +137,19 @@ class Lidar:
                     intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
                     intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
                     x_cell = int(robot_x + intermediate_x / self.resolution)
-                    y_cell = int(robot_y - intermediate_y / self.resolution)
+                    y_cell = int(robot_y + intermediate_y / self.resolution)
 
                     if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
                         index = y_cell * self.width + x_cell
-                        if self.data[index] == -1:
-                            self.data[index] = 0  # Free space
+                        self.data[index] = 0  # Free space
 
-                x_cell = int(robot_x + end_x / self.resolution)
-                y_cell = int(robot_y - end_y / self.resolution)
+                x_cell = int(robot_x + (end_x / self.resolution))
+                y_cell = int(robot_y + (end_y / self.resolution))
                 if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
                     index = y_cell * self.width + x_cell
                     self.data[index] = 100  # Obstacle
 
-        box_radius = 3
+        box_radius = 1
         for dx in range(-box_radius, box_radius + 1):
             for dy in range(-box_radius, box_radius + 1):
                 cx = robot_x + dx
@@ -179,7 +178,7 @@ class Lidar:
                             'resolution': self.resolution,
                             'width': self.width,
                             'height': self.height,
-                            'origin': {'position': {'x': 0.0, 'y': 0.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':-1.0}}
+                            'origin': {'position': {'x': -15.0, 'y': 15.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':-1.0}}
                             },
                     'data': self.data}
         return grid_msg
@@ -192,7 +191,7 @@ if __name__ == '__main__':
     lidar.subscribe()
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
-        time.sleep(2)
+        time.sleep(5)
         lidar.update_map()
 
     # cleanup
