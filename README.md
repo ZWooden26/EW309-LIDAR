@@ -12,9 +12,9 @@ The following is supplementary code to help with the final script:
 Hernandez Contributions: Was able to program the color sequence of area unexplored, free space, object detection, and the origin of the robot's reset of odometry.
 Created README. Created reset odom function.
 
-Mumaw Contributions:
+Mumaw Contributions: Programmed the initial odometry subscription and Occupancy Grid publishing functionality. Glue Guy
 
-Wooden Contributions:
+Wooden Contributions: Integrated color sequencing, time alignment, odometry subscription, and Occupancy Grid publishing.  
 
 Calendar of Objectives:
 
@@ -35,5 +35,8 @@ b) created map that does not rotate with its yaw axis movement
 c) working on integrating Grid colors with correct odom/scan alignment
 
 April 21st
-a) still working on time alignment
+a) finished time alignment
+b) refining the integration of grid colors
+
 April 22nd
+a) final demonstration of full functionality
