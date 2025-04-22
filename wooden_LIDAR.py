@@ -104,35 +104,6 @@ class Lidar:
     def get_latest_scan(self):
         return list(self.scan_data)
     
-    def bresenham(self, x0, y0, x1, y1):
-        """ Bresenham's line algorithm to get cells between robot and obstacle """
-        points = []
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-        x, y = x0, y0
-        sx = -1 if x0 > x1 else 1
-        sy = -1 if y0 > y1 else 1
-        if dx > dy:
-            err = dx / 2.0
-            while x != x1:
-                points.append((x, y))
-                err -= dy
-                if err < 0:
-                    y += sy
-                    err += dx
-                x += sx
-        else:
-            err = dy / 2.0
-            while y != y1:
-                points.append((x, y))
-                err -= dx
-                if err < 0:
-                    x += sx
-                    err += dy
-                y += sy
-        points.append((x1, y1))
-        return points
-
     def lidar_to_map(self):
         for odom in self.odom_data:
             for scan in self.scan_data:
@@ -157,22 +128,42 @@ class Lidar:
         robot_x = int(x / self.resolution + middle[0])
         robot_y = int(y / self.resolution + middle[1])
 
-        for r, a in zip(ranges, angles):
-            end_x = x + r * math.cos(yaw + a)
-            end_y = y + r * math.sin(yaw + a)
-            x_idx = int(end_x / self.resolution + middle[0])
-            y_idx = int(end_y / self.resolution + middle[1])
+        for r, a in zip(self.ranges, self.angles):
+            if r > 0:
+                end_x = x + r * math.cos(yaw + a)
+                end_y = y + r * math.sin(yaw + a)
+                steps = int(r/self.resolution)
+                for i in range(steps):
+                    intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
+                    intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
+                    x_cell = int(robot_x + intermediate_x / self.resolution)
+                    y_cell = int(robot_y - intermediate_y / self.resolution)
+
+                    if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
+                        index = y_cell * self.width + x_cell
+                        if self.data[index] == -1:
+                            self.data[index] = 0  # Free space
+
+                x_cell = int(robot_x + end_x / self.resolution)
+                y_cell = int(robot_y - end_y / self.resolution)
+                if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
+                    index = y_cell * self.width + x_cell
+                    self.data[index] = 100  # Obstacle
+
+        box_radius = 3
+        for dx in range(-box_radius, box_radius + 1):
+            for dy in range(-box_radius, box_radius + 1):
+                cx = robot_x + dx
+                cy = robot_y + dy
+                if 0 <= cx < self.width and 0 <= cy < self.height:
+                    index = cy * self.width + cx
+                    self.data[index] = 50  # Robot
+            
+        #x_idx = int(end_x / self.resolution + middle[0])
+        #y_idx = int(end_y / self.resolution + middle[1])
 
         # points = set(zip(x_idx, y_idx))
         # self.history.append(points)
-
-        line = self.bresenham(robot_x, robot_y, x_idx, y_idx)
-        for i, j in line[:-1]:  # all cells before the obstacle
-            if 0 <= i < self.width and 0 <= j < self.height:
-                self.data[j * self.width + i] = 0  # Free space
-        if 0 <= x_idx < self.width and 0 <= y_idx < self.height:
-            self.data[y_idx * self.width + x_idx] = 100  # Occupied
-        
         #for y in range(self.height):
         #    for x in range(self.width):
         #        index = y * self.width + x
