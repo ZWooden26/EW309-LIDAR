@@ -1,0 +1,26 @@
+
+# Package Overview
+
+The objective of this lab is to integrate the scan and odometry messages of a manually controlled mobile Robot in order to display an Occupancy Grid of where the robot is currently located, objects in its surroundings, free space, and unknown territory.
+
+# Install Dependencies
+**Import the following libraries:**
+
+<div>
+
+- roslibpy
+- time
+- math
+- numpy
+- from collections import deque
+- threading
+
+</div>
+
+<a href="http://127.0.0.1:5500/docs/index.html#" target="_blank">Click here to access the Github</a>
+
+# Package Description
+
+# Usage Examples
+
+![logo](map2.gif ':size=WIDTHxHEIGHT')
