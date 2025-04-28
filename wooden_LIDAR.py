@@ -143,58 +143,64 @@ class Lidar:
             angles = scan['angles']
 
             # Map center
-            middle = [self.width // 2, self.height // 2]
-            robot_x = int((x / self.resolution) + middle[0])
-            robot_y = int((y / self.resolution) + middle[1])
+            self.middle = [self.width // 2, self.height // 2]
+            #robot position
+            robot_x = int((x / self.resolution) + self.middle[0])
+            robot_y = int((y / self.resolution) + self.middle[1])
 
-            for r, a in zip(ranges, angles):
-                if r > 0:
-                    end_x = x + r * math.cos(yaw + a)
-                    end_y = y + r * math.sin(yaw + a)
-                    steps = int(r/self.resolution)
-                    for i in range(steps):
-                        intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
-                        intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
-                        x_cell = int(robot_x + intermediate_x / self.resolution)
-                        y_cell = int(robot_y + intermediate_y / self.resolution)                        
+            #for r, a in zip(ranges, angles):
+            #    if r > 0:
+            #        end_x = x + r * math.cos(yaw + a)
+            #        end_y = y + r * math.sin(yaw + a)
+            #        steps = int(r/self.resolution)
+            #        for i in range(steps):
+            #            intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
+            #            intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
+            #            x_cell = int(robot_x + intermediate_x / self.resolution)
+            #            y_cell = int(robot_y + intermediate_y / self.resolution)                        
 
-                        if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
-                            index = y_cell * self.width + x_cell
-                            self.data[index] = 0  # Free space
+            #            if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
+            #                index = y_cell * self.width + x_cell
+            #                self.data[index] = 0  # Free space
 
-                    x_cell = int(robot_x + (end_x / self.resolution))
-                    y_cell = int(robot_y + (end_y / self.resolution))
-                    if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
-                        index = y_cell * self.width + x_cell
-                        self.data[index] = 100  # Obstacle
+            #        x_hit = int(robot_x + (end_x / self.resolution))
+            #        y_hit = int(robot_y + (end_y / self.resolution))
+            #        if 0 <= x_hit < self.width and 0 <= y_hit < self.height:
+            #            index = y_hit * self.width + x_hit
+            #            self.data[index] = 100  # Obstacle
+            
+            ###
+            xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
+            ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
 
-            box_radius = 0
+            steps = [int(r/self.resolution) for r in ranges]
+            steps_idx = [(i) for i in range(steps)]
+            path_x = [x + (i * self.resolution * math.cos(a + yaw)) for i,a in zip(steps_idx, angles)] #free space vectors
+            path_y = [y + (i * self.resolution * math.sin(a + yaw)) for i,a in zip(steps_idx, angles)]
+
+
+            x_idx = [int(x / self.resolution + self.middle[0]) for x in xs] #Obstacle hitboxes
+            y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]
+            points = set(zip(x_idx, y_idx))
+            
+            for y in range(self.height):
+                for x in range(self.width):
+                    index = y * self.width + x
+                    if (x, y) in points:
+                        self.data[index] = 100 #Obstacle
+                    elif x in path_x and y in path_y:
+                        self.data[index] = 0 #Free Space
+                    else:
+                        continue
+
+            box_radius = 1
             for dx in range(-box_radius, box_radius + 1):
                 for dy in range(-box_radius, box_radius + 1):
                     cx = robot_x + dx
                     cy = robot_y + dy
                     if 0 <= cx < self.width and 0 <= cy < self.height:
                         index = cy * self.width + cx
-                        self.data[index] = 50  # Robot
-                
-            #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
-            #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
-            #self.middle = [self.width/2, self.height/2]
-            #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
-            #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
-            
-            #x_idx = int(end_x / self.resolution + middle[0])
-            #y_idx = int(end_y / self.resolution + middle[1])
-
-            # points = set(zip(x_idx, y_idx))
-            # self.history.append(points)
-            #for y in range(self.height):
-            #    for x in range(self.width):
-            #        index = y * self.width + x
-            #        if (x, y) in points:
-            #            self.data[index] = 100
-            #        else:
-            #            continue
+                        self.data[index] = 50  # Robot position
 
     def make_grid(self):
         self.lidar_to_map()
@@ -218,6 +224,7 @@ if __name__ == '__main__':
     while ros.is_connected:
         time.sleep(5)
         lidar.update_map()
+        print('Sent map data')
 
     # cleanup
     lidar.unsubscribe()
