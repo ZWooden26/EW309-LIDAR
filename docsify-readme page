@@ -1,8 +1,13 @@
 
 # Package Overview
-The objective of this lab is to integrate scan and odometry messages of the Robot we manually control in order to display an Occupancy Grid of the robot of where it is currently located, objects in its surroundings, free space, and unknown territory.
+
+The objective of this lab is to integrate scan and odometry messages of a mobile Robot
+we manually control in order to display an Occupancy Grid of where the robot is 
+currently located, objects in its surroundings, free space, and unknown territory.
+
 # Install Dependencies
-import the following libraries:
+!> **Import the following libraries:**
+
 <div style='color: red'>
 
 - roslibpy
@@ -14,8 +19,11 @@ import the following libraries:
 
 </div>
 
+<a href="http://127.0.0.1:5500/docs/index.html#" target="_blank">Click here to access the Github</a>
 
-Click on link GITHUB LINK to access the file to display the Occupancy grid
+# Package Description
+
+# Usage Examples
 
 add libraries and clone repositories
 
