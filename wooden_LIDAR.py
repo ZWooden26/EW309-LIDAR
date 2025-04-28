@@ -42,10 +42,13 @@ class Lidar:
         self.x = 0.0
         self.y = 0.0
         self.yaw = 0.0
+        self.initial_x = None
+        self.initial_y = None
+        self.initial_yaw = None
         #mapping parameters
-        self.resolution = 0.2 #meter/cell
-        self.width = 200
-        self.height = 200
+        self.resolution = 0.1 #meter/cell
+        self.width = 600
+        self.height = 600
         self.data = [-1] * (self.width*self.height)
         #deque for storing only latest scans/odom
         self.buffer = 20
@@ -106,29 +109,38 @@ class Lidar:
     def get_latest_scan(self):
         return list(self.scan_data)
     
-    def lidar_to_map(self):
-        with self.lock:
-            breakFlag = False
-            for odom in self.odom_data:
-                for scan in self.scan_data:
-                    if abs(odom['timestamp'] - scan['timestamp']) <= 0.05: 
-                        x = odom['position']['x']
-                        y = odom['position']['y']
-                        yaw = odom['yaw']
-                        ranges = scan['ranges']
-                        angles = scan['angles']
-                        breakFlag = True
-                        break
-                    else:
-                        continue
-                if breakFlag:
-                    break
+    def get_synch_data(self):
+        synchronized = []   
+        for odom in self.odom_data: 
+            for scan in self.scan_data:
+                if abs(odom['timestamp'] - scan['timestamp']) <= 0.05: 
+                    synchronized.append((odom, scan))
+                    
+                else:
+                    continue
+        return synchronized
 
-            #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
-            #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
-            #self.middle = [self.width/2, self.height/2]
-            #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
-            #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
+    
+    def lidar_to_map(self):
+         # Wait for synchronized data
+        while len(self.get_synch_data()) == 0:
+            time.sleep(0.05)  # Small sleep to prevent busy-waiting
+        with self.lock:
+            synchronized = self.get_synch_data()
+            idx = len(synchronized) - 1
+            odom = synchronized[idx][0]  # Get the latest odom data
+            scan = synchronized[idx][1]  # Get the latest scan data
+            
+            if self.initial_x is None:
+                self.initial_x = odom['position']['x']
+                self.initial_y = odom['position']['y']
+                self.initial_yaw = odom['yaw']
+            
+            x = odom['position']['x'] - self.initial_x
+            y = odom['position']['y'] - self.initial_y
+            yaw = odom['yaw'] - self.initial_yaw
+            ranges = scan['ranges']
+            angles = scan['angles']
 
             # Map center
             middle = [self.width // 2, self.height // 2]
@@ -144,7 +156,7 @@ class Lidar:
                         intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
                         intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
                         x_cell = int(robot_x + intermediate_x / self.resolution)
-                        y_cell = int(robot_y + intermediate_y / self.resolution)
+                        y_cell = int(robot_y + intermediate_y / self.resolution)                        
 
                         if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
                             index = y_cell * self.width + x_cell
@@ -156,7 +168,7 @@ class Lidar:
                         index = y_cell * self.width + x_cell
                         self.data[index] = 100  # Obstacle
 
-            box_radius = 1
+            box_radius = 0
             for dx in range(-box_radius, box_radius + 1):
                 for dy in range(-box_radius, box_radius + 1):
                     cx = robot_x + dx
@@ -165,6 +177,12 @@ class Lidar:
                         index = cy * self.width + cx
                         self.data[index] = 50  # Robot
                 
+            #xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
+            #ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
+            #self.middle = [self.width/2, self.height/2]
+            #x_idx = [int(x / self.resolution + self.middle[0]) for x in xs]
+            #y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]  
+            
             #x_idx = int(end_x / self.resolution + middle[0])
             #y_idx = int(end_y / self.resolution + middle[1])
 
@@ -185,7 +203,7 @@ class Lidar:
                             'resolution': self.resolution,
                             'width': self.width,
                             'height': self.height,
-                            'origin': {'position': {'x': -15.0, 'y': 15.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':-1.0}}
+                            'origin': {'position': {'x': 0.0, 'y': 0.0, 'z':0.0}, 'orientation': {'x':0.0, 'y':0.0, 'z': 0.0 , 'w':-1.0}}
                             },
                     'data': self.data}
         return grid_msg
@@ -198,7 +216,7 @@ if __name__ == '__main__':
     lidar.subscribe()
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
-        time.sleep(2)
+        time.sleep(5)
         lidar.update_map()
 
     # cleanup
