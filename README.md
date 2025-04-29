@@ -4,6 +4,8 @@ The following are each group members script for the Occupancy Grid Project in th
 2) Mumaw_script.py
 3) wooden_LIDAR.py
 
+wooden_LIDAR.py is the final code created for submission.
+
 The following is supplementary code to help with the final script in the "needed-functions" branch:
 
 1) reset_odom.py
