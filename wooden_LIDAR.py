@@ -57,7 +57,7 @@ class Lidar:
         self.history = deque(maxlen=10)
 
     # callback functions
-    def callback_odom(self, message):
+    def callback_odom(self, message): #Odom callback, extracts position and orientation
         stamp = message['header']['stamp'] # extract time stamp
         timestamp = stamp['sec'] + stamp['nanosec'] * 1e-9
         self.x = message.get('pose').get('pose').get('position').get('x')
@@ -76,7 +76,7 @@ class Lidar:
             'yaw': self.yaw
         })  
 
-    def callback_scan(self, message):
+    def callback_scan(self, message): #LIDAR callback, extracts ranges and angles
         stamp = message['header']['stamp']
         timestamp = stamp['sec'] + stamp['nanosec'] * 1e-9
         angle_min = message.get('angle_min', 0)
@@ -122,7 +122,7 @@ class Lidar:
 
     
     def lidar_to_map(self):
-         # Wait for synchronized data
+        # Wait for synchronized data
         while len(self.get_synch_data()) == 0:
             time.sleep(0.05)  # Small sleep to prevent busy-waiting
         with self.lock:
@@ -131,12 +131,12 @@ class Lidar:
             odom = synchronized[idx][0]  # Get the latest odom data
             scan = synchronized[idx][1]  # Get the latest scan data
             
-            if self.initial_x is None:
+            if self.initial_x is None: # set initial position
                 self.initial_x = odom['position']['x']
                 self.initial_y = odom['position']['y']
                 self.initial_yaw = odom['yaw']
             
-            x = odom['position']['x'] - self.initial_x
+            x = odom['position']['x'] - self.initial_x #grab odom and scan data when synchronization is verified
             y = odom['position']['y'] - self.initial_y
             yaw = odom['yaw'] - self.initial_yaw
             ranges = scan['ranges']
@@ -147,51 +147,36 @@ class Lidar:
             #robot position
             robot_x = int((x / self.resolution) + self.middle[0])
             robot_y = int((y / self.resolution) + self.middle[1])
-
-            #for r, a in zip(ranges, angles):
-            #    if r > 0:
-            #        end_x = x + r * math.cos(yaw + a)
-            #        end_y = y + r * math.sin(yaw + a)
-            #        steps = int(r/self.resolution)
-            #        for i in range(steps):
-            #            intermediate_x = x + (i * self.resolution * math.cos(a + yaw))
-            #            intermediate_y = y + (i * self.resolution * math.sin(a + yaw))
-            #            x_cell = int(robot_x + intermediate_x / self.resolution)
-            #            y_cell = int(robot_y + intermediate_y / self.resolution)                        
-
-            #            if 0 <= x_cell < self.width and 0 <= y_cell < self.height:
-            #                index = y_cell * self.width + x_cell
-            #                self.data[index] = 0  # Free space
-
-            #        x_hit = int(robot_x + (end_x / self.resolution))
-            #        y_hit = int(robot_y + (end_y / self.resolution))
-            #        if 0 <= x_hit < self.width and 0 <= y_hit < self.height:
-            #            index = y_hit * self.width + x_hit
-            #            self.data[index] = 100  # Obstacle
             
             ###
             xs = [x + r*math.cos(yaw + a) for r,a in zip(ranges, angles)]
             ys = [y + r*math.sin(yaw + a) for r,a in zip(ranges, angles)]
 
             steps = [int(r/self.resolution) for r in ranges]
-            steps_idx = [(i) for i in range(steps)]
-            path_x = [x + (i * self.resolution * math.cos(a + yaw)) for i,a in zip(steps_idx, angles)] #free space vectors
-            path_y = [y + (i * self.resolution * math.sin(a + yaw)) for i,a in zip(steps_idx, angles)]
+            path_x = [[int((x + (i * self.resolution * math.cos(a + yaw)) / self.resolution) + robot_x) for i in range(s)] for s, a in zip(steps, angles)] #nested lists of free space indexes
+            path_y = [[int((y + (i * self.resolution * math.sin(a + yaw)) / self.resolution) + robot_y) for i in range(s)] for s, a in zip(steps, angles)]
 
-
-            x_idx = [int(x / self.resolution + self.middle[0]) for x in xs] #Obstacle hitboxes
+            x_idx = [int(x / self.resolution + self.middle[0]) for x in xs] #List of obstacle hitboxes
             y_idx = [int(y / self.resolution + self.middle[1]) for y in ys]
             points = set(zip(x_idx, y_idx))
             
-            for y in range(self.height):
+            for i in range(len(path_x)): #build out free space
+                for j in range(len(path_x[i])):
+                    x = path_x[i][j]
+                    y = path_y[i][j]
+                    index = y * self.width + x
+                    if 0 <= x < self.width and 0 <= y < self.height:
+                        self.data[index] = 0 #free space color
+                    else:
+                        continue
+
+            for y in range(self.height): #build out obstacles
                 for x in range(self.width):
                     index = y * self.width + x
                     if (x, y) in points:
-                        self.data[index] = 100 #Obstacle
-                    elif x in path_x and y in path_y:
-                        self.data[index] = 0 #Free Space
+                        self.data[index] = 100 #Obstacle color
                     else:
-                        continue
+                        continue            
 
             box_radius = 1
             for dx in range(-box_radius, box_radius + 1):
@@ -202,7 +187,7 @@ class Lidar:
                         index = cy * self.width + cx
                         self.data[index] = 50  # Robot position
 
-    def make_grid(self):
+    def make_grid(self): #function that creates the occupancy grid message with header and timestamp
         self.lidar_to_map()
         grid_msg = {'header': {'frame_id': f'{self.robot_name}/odom'},
                     'info': {'map_load_time': {'secs': int(time.time()), 'nsecs': 0},
@@ -222,7 +207,7 @@ if __name__ == '__main__':
     lidar.subscribe()
     print("Connected to LIDAR, mapping data...")
     while ros.is_connected:
-        time.sleep(5)
+        time.sleep(5) #update map every 5 seconds
         lidar.update_map()
         print('Sent map data')
 
