@@ -1,18 +1,23 @@
-The following are each group members script for the Occupancy Grid Project:
+The following are each group members script for the Occupancy Grid Project in the "Scripts" Branch:
 
 1) Hernandez_LIDAR.py
 2) Mumaw_script.py
 3) wooden_LIDAR.py
 
-The following is supplementary code to help with the final script:
+The following is supplementary code to help with the final script in the "needed-functions" branch:
 
 1) reset_odom.py
 
+The following are all items needed in order to create the Readme and Docsify page in the "Docsify-page-items" branch:
+
+1) README.md
+2) docsify-readme page
+3) index.html
    
 Hernandez Contributions: Was able to program the color sequence of area unexplored, free space, object detection, and the origin of the robot's reset of odometry.
-Created README. Created reset odom function.
+Created README. Created reset odom function. Organized Github.
 
-Mumaw Contributions: Programmed the initial odometry subscription and Occupancy Grid publishing functionality. Glue Guy
+Mumaw Contributions: Programmed the initial odometry subscription and Occupancy Grid publishing functionality. Helped create content with the Docsify page. Glue Guy
 
 Wooden Contributions: Integrated color sequencing, time alignment, odometry subscription, and Occupancy Grid publishing.  
 
@@ -39,4 +44,13 @@ a) finished time alignment
 b) refining the integration of grid colors
 
 April 22nd
-a) final demonstration of full functionality
+a) final demonstration of full functionality. Learned the art of docsify and requirements for submission
+
+April 25th
+a) Still working to get time alignment. Started to work more on organizing on the Docsify page
+
+April 28th
+a) Still working on code. We realized the issue is with publishing free space from the robot to the object detected. Fixing that error and finishing Docsify page.
+
+April 29th
+a) Completed Code. Organizing Github and the rest of the README. Making final Commits with updated files.
