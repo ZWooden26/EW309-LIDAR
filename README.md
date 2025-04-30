@@ -1,9 +1,9 @@
 The following are each group members script for the Occupancy Grid Project in the "Scripts" Branch:
 
-1.) Hernandez_LIDAR.py
-2.) mumaw_script.py
-3.) wooden_LIDAR.py
-4.) wooden_LIDAR.py is the final code created for submission.
+1) Hernandez_LIDAR.py
+2) mumaw_script.py
+3) wooden_LIDAR.py
+4) wooden_LIDAR.py is the final code created for submission.
 
 The following is supplementary code to help with the final script in the "needed-functions" branch:
 
