@@ -5,14 +5,14 @@ The following are each group members script for the Occupancy Grid Project:
 3) wooden_LIDAR.py
 4) wooden_LIDAR.py is the final code created for submission.
 
-The following is supplementary code to help with the final script:
+The following is supplementary code to help with the final script:\n
 
-reset_odom.py
-The following are all items needed in order to create the Readme and Docsify page:
+reset_odom.py\n
+The following are all items needed in order to create the Readme and Docsify page:\n
 
-README.md
-docsify-readme page
-index.html
+README.md\n
+docsify-readme page\n
+index.html\n
 Hernandez Contributions: Was able to program the color sequence of area unexplored, free space, object detection, and the origin of the robot's reset of odometry. Created README. Created reset odom function. Organized Github.
 
 Mumaw Contributions: Programmed the initial odometry subscription and Occupancy Grid publishing functionality. Helped create content with the Docsify page. Glue Guy
